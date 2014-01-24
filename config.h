@@ -2,7 +2,10 @@
 #define CONFIG_H
 typedef struct {
     char *font_pattern;
+    char *shell;
 } config_t;
 
 extern config_t config;
+
+config_t default_config;
 #endif
