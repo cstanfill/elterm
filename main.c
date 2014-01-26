@@ -14,18 +14,20 @@ int master_pty = -1;
 int main(int argc, char *argv[]) {
     pid_t child = fork_shell(&master_pty);
     fd_set rfds;
-    FD_ZERO(&rfds);
-    FD_SET(0, &rfds);
-    FD_SET(master_pty, &rfds);
-    display_init();
+    int rv;
+    if ((rv = display_init()) < 0) {
+        printf("Error setting up display. Quitting ...\r\n");
+        exit(1);
+    }
+    add_screen(&all_screens, new_screen(master_pty));
 
     char inbuf[512];
     while (1) {
         FD_ZERO(&rfds);
         FD_SET(0, &rfds);
         FD_SET(master_pty, &rfds);
-        int rv;
-        if ((rv = select(master_pty+1, &rfds, NULL, NULL, NULL)) <= 0) {
+        FD_SET(x11fd, &rfds);
+        if ((rv = select(FD_SETSIZE, &rfds, NULL, NULL, NULL)) <= 0) {
             if (rv == 0) {
                 exit(0);
             } else {
@@ -57,6 +59,10 @@ int main(int argc, char *argv[]) {
                 waitpid(child, NULL, 0);
                 exit(0);
             }
+        }
+
+        if (FD_ISSET(x11fd, &rfds)) {
+            handle_x11evs();
         }
     }
 } 
