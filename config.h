@@ -1,6 +1,6 @@
 #ifndef CONFIG_H
 #define CONFIG_H
-typedef struct {
+typedef struct config_t {
     char *font_pattern;
     char *shell;
 } config_t;

@@ -41,7 +41,7 @@ int start_shell(int term_pty) {
     struct termios tsettings;
     tcgetattr(term_pty, &tsettings);
     // what modifications do we actually need to make?
-    tsettings.c_lflag &= ~ECHO;
+    tsettings.c_lflag &= ~ECHO; // only for term wrapper
     tcsetattr(term_pty, TCSANOW, &tsettings);
     setsid();
     ioctl(term_pty, TIOCSCTTY, 1);

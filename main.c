@@ -5,16 +5,19 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include "display.h"
 #include "main.h"
 #include "pty.h"
 
 int master_pty = -1;
+#pragma GCC diagnostic ignored "-Wunused-parameter"
 int main(int argc, char *argv[]) {
     pid_t child = fork_shell(&master_pty);
     fd_set rfds;
     FD_ZERO(&rfds);
     FD_SET(0, &rfds);
     FD_SET(master_pty, &rfds);
+    display_init();
 
     char inbuf[512];
     while (1) {
