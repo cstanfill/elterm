@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <X11/Xlib.h>
@@ -7,11 +8,22 @@
 static Display *display;
 
 screens_t all_screens = { NULL, 0 };
+int x11fd;
 
 int display_init() {
     display = XOpenDisplay(NULL);
     if (display == NULL) { return -1; }
+    x11fd = ConnectionNumber(display);
+    printf("Initialized display\n");
     return 0;
+}
+
+void handle_x11evs() {
+    XEvent ev;
+    while (XPending(display)) {
+        XNextEvent(display, &ev);
+        handle_x11ev(ev);
+    }
 }
 
 void handle_x11ev(XEvent ev) {
@@ -74,5 +86,7 @@ screen_t new_screen(int pty) {
     XMapWindow(display, window);
 
     screen_t res = { display, window, pty };
+    printf("Initialized new window\n");
+    XFlush(display);
     return res;
 }
