@@ -2,10 +2,13 @@
 #include <sys/types.h>
 #include "buffer.h"
 
-int new_buffer(buffer_t *buffer, size_t width, size_t height) {
+buffer_t *new_buffer(size_t width, size_t height) {
+    buffer_t *buffer = malloc(sizeof(buffer_t));
+    if (buffer == NULL) { return NULL; }
     char_t **contents = malloc(sizeof(char_t *) * width);
     if (contents == NULL) {
-        return -1;
+        free(buffer);
+        return NULL;
     }
     for (size_t i = 0; i < width; ++i) {
         contents[i] = malloc(sizeof(char_t) * height);
@@ -13,14 +16,15 @@ int new_buffer(buffer_t *buffer, size_t width, size_t height) {
             for (size_t j = 0; j < i; ++j) {
                 free(contents[j]);
                 free(contents);
-                return -1;
+                free(buffer);
+                return NULL;
             }
         }
     }
     buffer->contents = contents;
     buffer->width = width;
     buffer->height = height;
-    return 0;
+    return buffer;
 }
 
 void free_buffer(buffer_t *buffer) {
@@ -28,7 +32,5 @@ void free_buffer(buffer_t *buffer) {
         free(buffer->contents[i]);
     }
     free(buffer->contents);
-    buffer->contents = NULL;
-    buffer->width = 0;
-    buffer->height = 0;
+    free(buffer);
 }

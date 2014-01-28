@@ -1,5 +1,6 @@
 #ifndef BUFFER_H
 #define BUFFER_H
+#include <sys/types.h>
 /* todo: come up with a better name than char_t */
 typedef struct {
     char codepoint[4];
@@ -17,7 +18,7 @@ typedef struct {
     size_t height;
 } buffer_t;
 
-int new_buffer(buffer_t *buffer, size_t width, size_t height);
+buffer_t *new_buffer(size_t width, size_t height);
 void free_buffer(buffer_t *buffer);
 
 #endif

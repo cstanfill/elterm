@@ -2,10 +2,13 @@
 #define DISPLAY_H
 #include <stdbool.h>
 #include <X11/Xlib.h>
+#include "buffer.h"
+
 typedef struct screen_t {
     Display *display;
     Window window;
     int pty;
+    buffer_t *buffer;
 } screen_t;
 
 typedef struct screens_t {

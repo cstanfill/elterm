@@ -5,6 +5,7 @@
 #include <X11/Xutil.h>
 #include <X11/keysymdef.h>
 #include "display.h"
+#include "config.h"
 static Display *display;
 
 screens_t all_screens = { NULL, 0 };
@@ -85,7 +86,8 @@ screen_t new_screen(int pty) {
                                 );
     XMapWindow(display, window);
 
-    screen_t res = { display, window, pty };
+    screen_t res = { display, window, pty, new_buffer(config.term_size.x,
+                                                      config.term_size.y) };
     printf("Initialized new window\n");
     XFlush(display);
     return res;
