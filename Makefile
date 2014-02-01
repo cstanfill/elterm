@@ -16,6 +16,6 @@ clean:
 
 .PHONY: Makefile.tail
 Makefile.tail:
-	gcc -MM $(ALL_SRCFILES) > Makefile.tail
+	gcc -MM $(ALL_SRCFILES) $(INCLUDES) > Makefile.tail
 
 include Makefile.tail
