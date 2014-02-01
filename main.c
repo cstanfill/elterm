@@ -5,6 +5,8 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <X11/Xlib.h>
+#include <X11/Xft/Xft.h>
 #include "display.h"
 #include "main.h"
 #include "pty.h"
@@ -50,7 +52,11 @@ int main(int argc, char *argv[]) {
             int ct = read(master_pty, inbuf, 512);
             if (ct > 0) {
                 inbuf[ct] = 0;
-                printf("%s", inbuf);
+                write_string(all_screens.screens[0].buffer, inbuf, ct);
+                wipe_screen(all_screens.screens[0]);
+                render_buffer(all_screens.screens[0], 
+                              all_screens.screens[0].buffer, (cursor_t) { 0, 0 });
+                /* printf("%s", inbuf); */
                 fflush(stdout);
             } else if (ct == 0) {
                 waitpid(child, NULL, 0);

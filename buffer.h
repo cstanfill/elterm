@@ -14,11 +14,15 @@ typedef struct {
 
 typedef struct {
     char_t **contents;
-    size_t width;
-    size_t height;
+    int width;
+    int height;
+    cursor_t cursor;
 } buffer_t;
 
-buffer_t *new_buffer(size_t width, size_t height);
+buffer_t *new_buffer(int width, int height);
 void free_buffer(buffer_t *buffer);
+void write_char(buffer_t *buffer, char c);
+// TODO: write different encodings
+void write_string(buffer_t *buffer, char *string, int ct);
 
 #endif
