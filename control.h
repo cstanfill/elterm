@@ -24,6 +24,7 @@ typedef enum {
     SETGMODE,
     SETSMODE,
     CURSOR,
+    CURSOR_REL,
     WIPE,
     SAVEPOS,
     RESTORE,
@@ -50,11 +51,9 @@ typedef struct {
 
 typedef union {
      control_type type;
-     union {
-         no_args dummy;
-         change_color color;
-         move_cursor position;
-     }
+     no_args dummy;
+     change_color color;
+     move_cursor position;
 } control_char_t;
 
 #endif

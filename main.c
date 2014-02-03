@@ -55,7 +55,7 @@ int main(int argc, char *argv[]) {
                 write_string(all_screens.screens[0].buffer, inbuf, ct);
                 wipe_screen(all_screens.screens[0]);
                 render_buffer(all_screens.screens[0], 
-                              all_screens.screens[0].buffer, (cursor_t) { 0, 0 });
+                              all_screens.screens[0].buffer, 0, 0);
                 /* printf("%s", inbuf); */
                 fflush(stdout);
             } else if (ct == 0) {

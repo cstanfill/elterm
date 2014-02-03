@@ -4,7 +4,8 @@
 typedef struct config_t {
     char *font_pattern;
     char *shell;
-    cursor_t term_size;
+    int term_width;
+    int term_height;
 } config_t;
 
 extern config_t config;

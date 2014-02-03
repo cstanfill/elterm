@@ -109,17 +109,16 @@ screen_t new_screen(int pty) {
 
     XftFont *f = XftFontOpenName(display, screen, "DejaVu Sans Mono:pixelsize=12:antialias=true:autohint=true");
     screen_t res = { display, window, screen, d,
-        (XftColor*) colors, f, pty, new_buffer(config.term_size.x,
-                                                      config.term_size.y) };
+        (XftColor*) colors, f, pty, new_buffer(config.term_width, config.term_height) };
     printf("Initialized new window\n");
     XFlush(display);
     return res;
 }
 
-void render_buffer(screen_t screen, buffer_t *buffer, cursor_t topleft) {
-    for (int y = topleft.y; y < buffer->height; ++y) {
-        for (int x = topleft.x; x < buffer->width; ++x) {
-            XftChar8 *data = (XftChar8 *)(buffer->contents[x][y].codepoint);
+void render_buffer(screen_t screen, buffer_t *buffer, int startx, int starty) {
+    for (int y = 0; y < buffer->height; ++y) {
+        for (int x = 0; x < buffer->width; ++x) {
+            XftChar8 *data = (XftChar8 *)(buffer->contents[startx+x][starty+y].codepoint);
             if (*data != 0) {
                 XftDrawString8(screen.textarea, screen.colors, screen.font,
                         x * 8, y * 12 + 12, data, 1);
