@@ -1,4 +1,4 @@
-CFLAGS = -Wall -Wextra -O2 -std=gnu11 -pedantic -g `pkg-config --cflags freetype2`
+CFLAGS = -Wall -Wextra -O0 -std=gnu11 -pedantic -g `pkg-config --cflags freetype2`
 CC = gcc
 INCLUDES = -I/usr/include/freetype2
 ALL_OBJS = main.o pty.o config.o display.o buffer.o
