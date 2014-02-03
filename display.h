@@ -1,6 +1,6 @@
 #ifndef DISPLAY_H
 #define DISPLAY_H
-#define COLOR_CT 1
+#define COLOR_CT 5
 
 #include <stdbool.h>
 #include <X11/Xlib.h>

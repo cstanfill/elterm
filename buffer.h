@@ -16,7 +16,7 @@ typedef struct {
     int color;
 } cursor_t;
 
-typedef struct { 
+typedef struct {
     bool ischar;
     union {
         char_t glyph;
@@ -40,7 +40,7 @@ typedef struct {
 bool is_printable(char c);
 bool is_control(char c);
 
-char_t to_char_t(char c);
+char_t to_char_t(char c, int color);
 void enqueue(queue_t *queue, char c);
 void dequeue_n(queue_t *queue, int count);
 char dequeue(queue_t *queue);

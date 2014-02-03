@@ -9,6 +9,7 @@
 #include "buffer.h"
 #include "config.h"
 #include "display.h"
+#include "control.h"
 
 static Display *display;
 
@@ -24,6 +25,27 @@ int display_init() {
     default_colors[0].blue = 0;
     default_colors[0].green = 0;
     default_colors[0].alpha = 0xFFFF;
+
+    default_colors[1].red = 0xFFFF;
+    default_colors[1].blue = 0;
+    default_colors[1].green = 0;
+    default_colors[1].alpha = 0xFFFF;
+
+    default_colors[2].red = 0;
+    default_colors[2].blue = 0;
+    default_colors[2].green = 0xFFFF;
+    default_colors[2].alpha = 0xFFFF;
+
+    default_colors[3].red = 0xFFFF;
+    default_colors[3].blue = 0;
+    default_colors[3].green = 0xFFFF;
+    default_colors[3].alpha = 0xFFFF;
+
+    default_colors[4].red = 0;
+    default_colors[4].blue = 0xFFFF;
+    default_colors[4].green = 0;
+    default_colors[4].alpha = 0xFFFF;
+
     printf("Initialized display\n");
     return 0;
 }
@@ -97,15 +119,11 @@ screen_t new_screen(int pty) {
     XftDraw *d = XftDrawCreate(display, window, XDefaultVisual(display, screen),
                                                 XDefaultColormap(display, screen));
 
-    XftColor *colors = malloc(sizeof(XftColor));
-    XRenderColor colorx;
-    colorx.red = 0;
-    colorx.blue = 0;
-    colorx.green = 0;
-    colorx.alpha = 0xFFFF;
-
-    XftColorAllocValue(display, XDefaultVisual(display, screen),
-            XDefaultColormap(display, screen), &colorx, colors);
+    XftColor *colors = calloc(COLOR_CT, sizeof(XftColor));
+    for (int i = 0; i < COLOR_CT; ++i) {
+        XftColorAllocValue(display, XDefaultVisual(display, screen),
+                XDefaultColormap(display, screen), default_colors + i, colors + i);
+    }
 
     XftFont *f = XftFontOpenName(display, screen, "DejaVu Sans Mono:pixelsize=12:antialias=true:autohint=true");
     screen_t res = { display, window, screen, d,
@@ -118,9 +136,10 @@ screen_t new_screen(int pty) {
 void render_buffer(screen_t screen, buffer_t *buffer, int startx, int starty) {
     for (int y = 0; y < buffer->height; ++y) {
         for (int x = 0; x < buffer->width; ++x) {
-            XftChar8 *data = (XftChar8 *)(buffer->contents[startx+x][starty+y].codepoint);
+            char_t entry = buffer->contents[startx+x][starty+y];
+            XftChar8 *data = (XftChar8 *)(entry.codepoint);
             if (*data != 0) {
-                XftDrawString8(screen.textarea, screen.colors, screen.font,
+                XftDrawString8(screen.textarea, screen.colors + entry.color, screen.font,
                         x * 8, y * 12 + 12, data, 1);
             }
         }

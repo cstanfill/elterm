@@ -8,8 +8,8 @@ bool is_printing(char c) {
     return (c <= '~') && (c >= ' ');
 }
 
-char_t to_char_t(char c) {
-    return (char_t) {{c, 0, 0, 0}, 0};
+char_t to_char_t(char c, int color) {
+    return (char_t) {{c, 0, 0, 0}, color};
 }
 
 void enqueue(queue_t *queue, char c) {
@@ -32,7 +32,8 @@ char dequeue(queue_t *queue) {
 }
 
 void dequeue_n(queue_t *queue, int count) {
-    if (count >= queue->len) { queue->contents = NULL; queue->len = 0; return; }
+    if (count >= queue->len) { queue->contents = NULL; queue->len = 0;
+        return; }
     char *new_queue = calloc(queue->len - count, sizeof(char));
     for (int i = 0; i < queue->len - count; ++i) {
         new_queue[i] = queue->contents[i];
@@ -99,21 +100,30 @@ void write_char_t(buffer_t *buffer, char_t c) {
 
 void write_char(buffer_t *buffer, char c) {
     if (c == '\r') { buffer->cursor.x = 0; return; }
-    if (c == '\n') { ++buffer->cursor.y; return; }
+    if (c == '\n') { 
+        ++buffer->cursor.y;
+        if (buffer->cursor.y >= buffer->height) {
+            buffer->cursor.y = 0;
+        }
+        return;
+    }
     if (c == '\b') {
         --buffer->cursor.x;
         if (buffer->cursor.x < 0) {
             buffer->cursor.x = buffer->width - 1;
             --buffer->cursor.y;
+            if (buffer->cursor.y < 0) {
+                buffer->cursor.y = 0;
+            }
         }
-        buffer->contents[buffer->cursor.x][buffer->cursor.y] = to_char_t(0);
+        buffer->contents[buffer->cursor.x][buffer->cursor.y] = to_char_t(0, 0);
         return;
     }
-    if (c == '\a') { 
+    if (c == '\a') {
         return;
     }
     if (is_printing(c) && buffer->unread->len == 0) {
-        write_char_t(buffer, to_char_t(c));
+        write_char_t(buffer, to_char_t(c, buffer->cursor.color));
     } else {
         queue_t *unread = buffer->unread;
         enqueue(unread, c);
@@ -121,6 +131,19 @@ void write_char(buffer_t *buffer, char c) {
         char_or_control result;
         int len;
         if ((len = parse(unread->contents, unread->len, &result)) > 0) {
+            if (!result.ischar) {
+                control_char_t action = result.contents.action;
+                if (action.type == SETGMODE) {
+                    change_color c = action.color;
+                    if (c.attribute == 0) {
+                        buffer->cursor.color = 0;
+                    }
+
+                    if (c.foreground != -1) {
+                        buffer->cursor.color = c.foreground - ANSI_FG_BLACK;
+                    }
+                }
+            }
             dequeue_n(unread, len);
         }
     }
@@ -152,8 +175,6 @@ int parse(char *buffer, int len, char_or_control *result) {
 ANSI:
     ; // stupid
     int *args;
-    for (char *s = buffer; *s != 0; ++s) {
-    }
     for (int i = 2; i < len; ++i) {
         args = calloc(i, sizeof(int));
         switch (buffer[i]) {
@@ -176,12 +197,15 @@ ANSI:
                 int ct;
                 REQUIRE((ct = parse_args(buffer, len, args))<=3);
                 change_color command;
+                command.attribute = -1;
+                command.foreground = -1;
+                command.background = -1;
                 for (int j = 0; j < ct; ++j) {
                     if (0 <= args[j] && args[j] <= 8) {
                         command.attribute = args[j];
-                    } else if (ANSI_FG_WHITE <= args[j] && args[j] <= ANSI_FG_BLACK) {
+                    } else if (ANSI_FG_BLACK <= args[j] && args[j] <= ANSI_FG_WHITE) {
                         command.foreground = args[j];
-                    } else if (ANSI_BG_WHITE <= args[j] && args[j] <= ANSI_BG_BLACK) {
+                    } else if (ANSI_BG_BLACK <= args[j] && args[j] <= ANSI_BG_WHITE) {
                         command.background = args[j];
                     }
                 }
@@ -210,15 +234,19 @@ int parse_args(char *buffer, int len, int *result) {
     char buf[8];
     memset(buf, 0, 8);
     int j = 0;
-    for (int i = 3; i < len; ++i) {
+    for (int i = 2; i < len; ++i) {
         if (buffer[i] == ';') {
             if (j == 0) { break; }
             result[ct++] = atoi(buf);
+            j = 0;
         } else if ((buffer[i] > '9' || buffer[i] < '0') && buffer[i] != '-') {
+            if (j > 0) {
+                result[ct++] = atoi(buf);
+            }
             break;
+        } else {
+            buf[j++] = buffer[i];
         }
-
-        buf[j++] = buffer[i];
     }
     return ct;
 }
