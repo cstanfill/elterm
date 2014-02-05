@@ -25,11 +25,13 @@ typedef enum {
     SETSMODE,
     CURSOR,
     CURSOR_REL,
-    WIPE,
     SAVEPOS,
     RESTORE,
-    ERASE,
-    CLEARLINE,
+    NEXT_INDEX,
+    PREV_INDEX,
+    NEXT_LINE,
+    CLEAR,
+    NOP
 } control_type;
 
 typedef struct {
@@ -43,6 +45,15 @@ typedef struct {
     control_type type;
 } no_args;
 
+#define CL_LINE_UP 0x1
+#define CL_LINE_DOWN 0x2
+#define CL_LINE_LEFT 0x4
+#define CL_LINE_RIGHT 0x8
+typedef struct {
+    control_type type;
+    int region_mask;
+} clear_regions;
+
 typedef struct {
     control_type type;
     int x;
@@ -54,6 +65,7 @@ typedef union {
      no_args dummy;
      change_color color;
      move_cursor position;
+     clear_regions clear;
 } control_char_t;
 
 #endif

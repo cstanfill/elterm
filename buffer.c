@@ -93,17 +93,22 @@ void write_char_t(buffer_t *buffer, char_t c) {
     if (++(buffer->cursor.x) >= buffer->width) {
         buffer->cursor.x = 0;
         if (++(buffer->cursor.y) >= buffer->height) {
-            buffer->cursor.y = 0;
+            scroll_down(buffer);
+            --buffer->cursor.y;
         }
     }
 }
 
 void write_char(buffer_t *buffer, char c) {
+    if (c & 0x80) {
+        return;
+    }
     if (c == '\r') { buffer->cursor.x = 0; return; }
     if (c == '\n') { 
         ++buffer->cursor.y;
         if (buffer->cursor.y >= buffer->height) {
-            buffer->cursor.y = 0;
+            scroll_down(buffer);
+            --buffer->cursor.y;
         }
         return;
     }
@@ -123,6 +128,7 @@ void write_char(buffer_t *buffer, char c) {
         return;
     }
     if (is_printing(c) && buffer->unread->len == 0) {
+        printf("%c",c);
         write_char_t(buffer, to_char_t(c, buffer->cursor.color));
     } else {
         queue_t *unread = buffer->unread;
@@ -131,6 +137,7 @@ void write_char(buffer_t *buffer, char c) {
         char_or_control result;
         int len;
         if ((len = parse(unread->contents, unread->len, &result)) > 0) {
+            dequeue_n(unread, len);
             if (!result.ischar) {
                 control_char_t action = result.contents.action;
                 if (action.type == SETGMODE) {
@@ -142,9 +149,48 @@ void write_char(buffer_t *buffer, char c) {
                     if (c.foreground != -1) {
                         buffer->cursor.color = c.foreground - ANSI_FG_BLACK;
                     }
+                } else if (action.type == CURSOR) {
+                    buffer->cursor.x = action.position.x;
+                    buffer->cursor.y = action.position.y;
+                } else if (action.type == CURSOR_REL) {
+                    buffer->cursor.x += action.position.x;
+                    buffer->cursor.y += action.position.y;
+                } else if (action.type == CLEAR) {
+                    if (action.clear.region_mask & CL_LINE_DOWN) {
+                        clear_down(buffer);
+                    }
+                    if (action.clear.region_mask & CL_LINE_UP) {
+                        clear_up(buffer);
+                    }
+                    if (action.clear.region_mask & CL_LINE_LEFT) {
+                        clear_left(buffer);
+                    }
+                    if (action.clear.region_mask & CL_LINE_RIGHT) {
+                        clear_right(buffer);
+                    }
+                } else if (action.type == NEXT_INDEX) {
+                    ++buffer->cursor.y;
+                    if (buffer->cursor.y >= buffer->height) {
+                        scroll_down(buffer);
+                        --buffer->cursor.y;
+                    }
+                } else if (action.type == PREV_INDEX) {
+                    --buffer->cursor.y;
+                    if (buffer->cursor.y < 0) {
+                        scroll_up(buffer);
+                        ++buffer->cursor.y;
+                    }
+                } else if (action.type == NEXT_LINE) {
+                    ++buffer->cursor.y;
+                    buffer->cursor.x = 0;
+                    if (buffer->cursor.y >= buffer->height) {
+                        scroll_up(buffer);
+                        --buffer->cursor.y;
+                    }
+
                 }
+
             }
-            dequeue_n(unread, len);
         }
     }
 }
@@ -156,6 +202,11 @@ void write_string(buffer_t *buffer, char *string, int ct) {
 
 #define REQUIRE(x) if (!(x)) { return i+1; }
 int parse(char *buffer, int len, char_or_control *result) {
+    result->ischar = false;
+    result->contents.action.type = NOP;
+    if (len > 1 && buffer[len-1] == 27) {
+        return len-1;
+    }
     if (len >= 2 && buffer[0] == 27) {
         if (buffer[1] == '[') {
             goto ANSI;
@@ -164,54 +215,149 @@ int parse(char *buffer, int len, char_or_control *result) {
                 case '=':
                     return 2;
                 case 27:
+                    printx(buffer);
                     return 1;
+                case 'M':
+                    result->ischar = false;
+                    result->contents.action = (control_char_t) { .dummy = (no_args) { PREV_INDEX } };
+                    return 2;
+                case 'D':
+                    result->ischar = false;
+                    result->contents.action = (control_char_t) { .dummy = (no_args) { NEXT_INDEX } };
+                    return 2;
+                case 'E':
+                    result->ischar = false;
+                    result->contents.action = (control_char_t) { .dummy = (no_args) { NEXT_LINE } };
+                    return 2;
                 default:
+                    printx(buffer);
                     break;
             }
         }
     }
     goto END;
 
-ANSI:
-    ; // stupid
     int *args;
+    change_color color_command;
+    clear_regions clear_command;
+
+ANSI:
     for (int i = 2; i < len; ++i) {
         args = calloc(i, sizeof(int));
+        int ct;
         switch (buffer[i]) {
             case 'H':
             case 'f':
-                REQUIRE((parse_args(buffer, len, args)==2));
+                REQUIRE((ct =parse_args(buffer, len, args))<=2);
+                REQUIRE(ct != 1);
                 result->ischar = false;
-                result->contents.action = (control_char_t) { .position = (move_cursor) { CURSOR, args[0], args[1] } };
+                int x = 0;
+                int y = 0;
+                if (ct == 2) {
+                    x = args[1] - 1;
+                    y = args[0] - 1;
+                    printf("%d %d\n", args[0], args[1]);
+                }
+                result->contents.action = (control_char_t) { .position = (move_cursor) { CURSOR, x, y } };
                 return i+1;
             case 'A':
+                REQUIRE((parse_args(buffer, len, args)==1));
+                result->ischar = false;
+                result->contents.action = (control_char_t) {
+                    .position = (move_cursor) { CURSOR_REL,       0,-args[0] }
+                };
+                return i+1;
             case 'B':
+                REQUIRE((parse_args(buffer, len, args)==1));
+                result->ischar = false;
+                result->contents.action = (control_char_t) {
+                    .position = (move_cursor) { CURSOR_REL,       0, args[0] }
+                };
+                return i+1;
             case 'C':
+                REQUIRE((parse_args(buffer, len, args)==1));
+                result->ischar = false;
+                result->contents.action = (control_char_t) {
+                    .position = (move_cursor) { CURSOR_REL, args[0],       0 }
+                };
+                return i+1;
             case 'D':
+                REQUIRE((parse_args(buffer, len, args)==1));
+                result->ischar = false;
+                result->contents.action = (control_char_t) {
+                    .position = (move_cursor) { CURSOR_REL,-args[0],       0 }
+                };
+                return i+1;
+
+            case 'm':
+                REQUIRE((ct = parse_args(buffer, len, args))<=3);
+                color_command.attribute = -1;
+                color_command.foreground = -1;
+                color_command.background = -1;
+                for (int j = 0; j < ct; ++j) {
+                    if (0 <= args[j] && args[j] <= 8) {
+                        color_command.attribute = args[j];
+                    } else if (ANSI_FG_BLACK <= args[j] && args[j] <= ANSI_FG_WHITE) {
+                        color_command.foreground = args[j];
+                    } else if (ANSI_BG_BLACK <= args[j] && args[j] <= ANSI_BG_WHITE) {
+                        color_command.background = args[j];
+                    }
+                }
+                color_command.type = SETGMODE;
+                result->ischar = false;
+                result->contents.action = (control_char_t) { .color = color_command };
+                return i+1;
             case 's':
             case 'u':
             case 'J':
-            case 'K':
-            case 'm':
-                ;
-                int ct;
-                REQUIRE((ct = parse_args(buffer, len, args))<=3);
-                change_color command;
-                command.attribute = -1;
-                command.foreground = -1;
-                command.background = -1;
-                for (int j = 0; j < ct; ++j) {
-                    if (0 <= args[j] && args[j] <= 8) {
-                        command.attribute = args[j];
-                    } else if (ANSI_FG_BLACK <= args[j] && args[j] <= ANSI_FG_WHITE) {
-                        command.foreground = args[j];
-                    } else if (ANSI_BG_BLACK <= args[j] && args[j] <= ANSI_BG_WHITE) {
-                        command.background = args[j];
+                REQUIRE((ct = parse_args(buffer, len, args))<=1);
+                clear_command.type = CLEAR;
+                clear_command.region_mask = 0;
+                if (ct == 0) {
+                    clear_command.region_mask |= CL_LINE_DOWN;
+                } else if (ct == 1) {
+                    switch (args[0]) {
+                        case 0:
+                            clear_command.region_mask |= CL_LINE_DOWN;
+                            break;
+                        case 1:
+                            clear_command.region_mask |= CL_LINE_UP;
+                            break;
+                        case 2:
+                            clear_command.region_mask |= CL_LINE_DOWN | CL_LINE_UP;
+                            break;
+                        default:
+                            break;
                     }
                 }
-                command.type = SETGMODE;
                 result->ischar = false;
-                result->contents.action = (control_char_t) { .color = command };
+                result->contents.action = (control_char_t) { .clear = clear_command };
+
+                return i+1;
+            case 'K':
+                REQUIRE((ct = parse_args(buffer, len, args))<=1);
+                clear_command.type = CLEAR;
+                clear_command.region_mask = 0;
+                if (ct == 0) {
+                    clear_command.region_mask |= CL_LINE_RIGHT;
+                } else if (ct == 1) {
+                    switch (args[0]) {
+                        case 0:
+                            clear_command.region_mask |= CL_LINE_RIGHT;
+                            break;
+                        case 1:
+                            clear_command.region_mask |= CL_LINE_LEFT;
+                            break;
+                        case 2:
+                            clear_command.region_mask |= CL_LINE_RIGHT | CL_LINE_LEFT;
+                            break;
+                        default:
+                            break;
+                    }
+                }
+                result->ischar = false;
+                result->contents.action = (control_char_t) { .clear = clear_command };
+
                 return i+1;
             case 'h':
             case 'l':
@@ -239,6 +385,7 @@ int parse_args(char *buffer, int len, int *result) {
             if (j == 0) { break; }
             result[ct++] = atoi(buf);
             j = 0;
+            memset(buf, 0, 8);
         } else if ((buffer[i] > '9' || buffer[i] < '0') && buffer[i] != '-') {
             if (j > 0) {
                 result[ct++] = atoi(buf);
@@ -249,4 +396,68 @@ int parse_args(char *buffer, int len, int *result) {
         }
     }
     return ct;
+}
+
+void scroll_down(buffer_t *buffer) {
+    for (int y = 0; y < buffer->height - 1; ++y) {
+        for (int x = 0; x < buffer->width; ++x) {
+            buffer->contents[x][y] = buffer->contents[x][y+1];
+        }
+    }
+    for (int x = 0; x < buffer->width; ++x) {
+        buffer->contents[x][buffer->height-1] = to_char_t(0, 0);
+    }
+}
+
+void scroll_up(buffer_t *buffer) {
+    for (int y = buffer->height - 1; y > 0; --y) {
+        for (int x = 0; x < buffer->width; ++x) {
+            buffer->contents[x][y] = buffer->contents[x][y-1];
+        }
+    }
+    for (int x = 0; x < buffer->width; ++x) {
+        buffer->contents[x][0] = to_char_t(0, 0);
+    }
+}
+
+void clear_down(buffer_t *buffer) {
+    for (int y = buffer->cursor.y; y < buffer->height; ++y) {
+        for (int x = 0; x < buffer->width; ++x) {
+            buffer->contents[x][y] = to_char_t(0, 0);
+        }
+    }
+}
+
+void clear_up(buffer_t *buffer) {
+    for (int y = buffer->cursor.y-1; y >= 0; ++y) {
+        for (int x = 0; x < buffer->width; ++x) {
+            buffer->contents[x][y] = to_char_t(0, 0);
+        }
+    }
+}
+
+void clear_left(buffer_t *buffer) {
+    int y = buffer->cursor.y;
+    for (int x = buffer->cursor.x; x >= 0; ++x) {
+        buffer->contents[x][y] = to_char_t(0, 0);
+    }
+}
+
+void clear_right(buffer_t *buffer) {
+    int y = buffer->cursor.y;
+    for (int x = buffer->cursor.x; x < buffer->width; ++x) {
+        buffer->contents[x][y] = to_char_t(0, 0);
+    }
+}
+
+
+void printx(const char *string) {
+    for (const char *c = string; *c != 0; ++c) {
+        if (' ' > *c || '~' < *c) {
+            printf("\\%02x", *c);
+        } else {
+            printf("%c", *c);
+        }
+    }
+    printf("\n");
 }

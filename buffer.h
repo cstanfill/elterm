@@ -52,8 +52,18 @@ int parse_args(char *buffer, int len, int *result);
 
 buffer_t *new_buffer(int width, int height);
 void free_buffer(buffer_t *buffer);
+
+void scroll_up(buffer_t *buffer);
+void scroll_down(buffer_t *buffer);
+void clear_down(buffer_t *buffer);
+void clear_up(buffer_t *buffer);
+void clear_left(buffer_t *buffer);
+void clear_right(buffer_t *buffer);
+
 void write_char(buffer_t *buffer, char c);
 // TODO: write different encodings
 void write_string(buffer_t *buffer, char *string, int ct);
+
+void printx(const char *string);
 
 #endif
