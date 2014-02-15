@@ -128,7 +128,6 @@ void write_char(buffer_t *buffer, char c) {
         return;
     }
     if (is_printing(c) && buffer->unread->len == 0) {
-        printf("%c",c);
         write_char_t(buffer, to_char_t(c, buffer->cursor.color));
     } else {
         queue_t *unread = buffer->unread;
@@ -215,7 +214,6 @@ int parse(char *buffer, int len, char_or_control *result) {
                 case '=':
                     return 2;
                 case 27:
-                    printx(buffer);
                     return 1;
                 case 'M':
                     result->ischar = false;
@@ -256,7 +254,6 @@ ANSI:
                 if (ct == 2) {
                     x = args[1] - 1;
                     y = args[0] - 1;
-                    printf("%d %d\n", args[0], args[1]);
                 }
                 result->contents.action = (control_char_t) { .position = (move_cursor) { CURSOR, x, y } };
                 return i+1;

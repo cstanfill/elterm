@@ -5,6 +5,7 @@
 #include <X11/Xutil.h>
 #include <X11/keysym.h>
 #include <X11/Xft/Xft.h>
+#include <X11/extensions/Xdbe.h>
 
 #include "buffer.h"
 #include "config.h"
@@ -50,6 +51,34 @@ int display_init() {
     return 0;
 }
 
+// I have no idea how this works
+Visual *get_visual(Display *display) {
+    int screen_ct = 1;
+    Drawable screens[] = { DefaultRootWindow(display) };
+    XdbeScreenVisualInfo *info = XdbeGetVisualInfo(display, screens, &screen_ct);
+    if (info == NULL || screen_ct < 1 || info->count < 1) {
+        printf("No visuals support Xdbe.\n");
+        exit(1);
+    }
+
+    XVisualInfo xvis_temp;
+    xvis_temp.visualid = info->visinfo[0].visual;
+    xvis_temp.screen = 0;
+    xvis_temp.depth = info->visinfo[0].depth;
+
+    int matches;
+    XVisualInfo *match = XGetVisualInfo(display, VisualIDMask
+                                               | VisualScreenMask
+                                               | VisualDepthMask,
+                                               &xvis_temp, &matches);
+    if (match == NULL || matches < 1) {
+        printf("Couldn't find a visual for double buffering.\n");
+        exit(1);
+    }
+
+    return match->visual;
+}
+
 void handle_x11evs() {
     XEvent ev;
     while (XPending(display)) {
@@ -93,7 +122,7 @@ int add_screen(screens_t *screens, screen_t screen) {
 
 int remove_screen(screens_t *screens, size_t index) {
     if (screens == NULL) { return -1; }
-    if (screens->screens == NULL) { return -1; } 
+    if (screens->screens == NULL) { return -1; }
     if (screens->length <= index) { return -2; }
     screen_t *new_screens = malloc(sizeof(screen_t) * (screens->length - 1));
     for (size_t i = 0; i < screens->length - 1; ++i) {
@@ -107,16 +136,20 @@ int remove_screen(screens_t *screens, size_t index) {
 
 screen_t new_screen(int pty) {
     int screen = DefaultScreen(display);
-    Window window = XCreateSimpleWindow(display, RootWindow(display, screen), 
-            10, 10, 800, 800, 1, BlackPixel(display, screen),
-                                 WhitePixel(display, screen));
+    Visual *vis = get_visual(display);
+    XSetWindowAttributes attr;
+    attr.background_pixel = WhitePixel(display, screen);
+    Window window = XCreateWindow(display, RootWindow(display, screen),
+            0, 0, 800, 800, 1, CopyFromParent, CopyFromParent,
+            vis, CWBackPixel, &attr);
+    XdbeBackBuffer back = XdbeAllocateBackBufferName(display, window, XdbeBackground);
 
-    XSelectInput(display, window, ExposureMask 
+    XSelectInput(display, window, ExposureMask
                                 | KeyPressMask
                                 | StructureNotifyMask
                                 );
     XMapWindow(display, window);
-    XftDraw *d = XftDrawCreate(display, window, XDefaultVisual(display, screen),
+    XftDraw *d = XftDrawCreate(display, window, vis,
                                                 XDefaultColormap(display, screen));
 
     XftColor *colors = calloc(COLOR_CT, sizeof(XftColor));
@@ -126,7 +159,8 @@ screen_t new_screen(int pty) {
     }
 
     XftFont *f = XftFontOpenName(display, screen, "DejaVu Sans Mono:pixelsize=12:antialias=true:autohint=true");
-    screen_t res = { display, window, screen, d,
+
+    screen_t res = { display, window, back, screen, d,
         (XftColor*) colors, f, pty, new_buffer(config.term_width, config.term_height) };
     printf("Initialized new window\n");
     XFlush(display);

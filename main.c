@@ -12,8 +12,9 @@
 #include "pty.h"
 
 int master_pty = -1;
-#pragma GCC diagnostic ignored "-Wunused-parameter"
 int main(int argc, char *argv[]) {
+    (void) argc;
+    (void) argv;
     pid_t child = fork_shell(&master_pty);
     fd_set rfds;
     int rv;
@@ -56,7 +57,6 @@ int main(int argc, char *argv[]) {
                 wipe_screen(all_screens.screens[0]);
                 render_buffer(all_screens.screens[0], 
                               all_screens.screens[0].buffer, 0, 0);
-                /* printf("%s", inbuf); */
                 fflush(stdout);
             } else if (ct == 0) {
                 waitpid(child, NULL, 0);

@@ -6,7 +6,7 @@ ALL_SRCFILES = main.c display.c pty.c config.c buffer.c
 
 TARGETS = elterm
 
-LIBS = -lutil -lX11 -lXft
+LIBS = -lutil -lX11 -lXft -lXext
 
 elterm: $(ALL_OBJS) Makefile.tail
 	$(CC) $(LDFLAGS) $(CFLAGS) -o $@ $(LIBS) $(ALL_OBJS) 
