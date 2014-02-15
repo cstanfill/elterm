@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <termios.h>
+#include <sys/ioctl.h>
 #include <unistd.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
@@ -92,18 +94,32 @@ void handle_x11ev(XEvent ev) {
     if (all_screens.screens == NULL) { return; }
     for (size_t i = 0; i < all_screens.length; ++i) {
         if (all_screens.screens[i].window == w) {
-            handle_windowev(all_screens.screens[i], ev);
+            handle_windowev(&all_screens.screens[i], ev);
         }
     }
 }
 
-void handle_windowev(screen_t window, XEvent ev) {
+void handle_windowev(screen_t *window, XEvent ev) {
     if (ev.type == KeyPress) {
         char buffer[8];
         KeySym symbol;
         XComposeStatus status;
         int ct = XLookupString(&(ev.xkey), buffer, 8, &symbol, &status);
-        write(window.pty, buffer, ct);
+        write(window->pty, buffer, ct);
+
+    } else if (ev.type == ResizeRequest) {
+        resize_screen(window, ev.xresizerequest.width, ev.xresizerequest.height);
+    } else if (ev.type == ConfigureNotify) {
+        if (ev.xconfigure.width != window->width ||
+            ev.xconfigure.height != window->height) {
+            resize_screen(window, ev.xconfigure.width, ev.xconfigure.height);
+        }
+    } else if (ev.type == Expose) {
+        refresh(window);
+    } else if (ev.type == MapNotify) {
+        refresh(window);
+    } else{
+        printf("Event %d\n", ev.type);
     }
 }
 
@@ -140,8 +156,8 @@ screen_t new_screen(int pty) {
     XSetWindowAttributes attr;
     attr.background_pixel = BlackPixel(display, screen);
     Window window = XCreateWindow(display, RootWindow(display, screen),
-            0, 0, 800, 800, 1, CopyFromParent, CopyFromParent,
-            vis, CWBackPixel, &attr);
+            0, 0, config.term_width * 8, config.term_height * 12, 1,
+            CopyFromParent, CopyFromParent, vis, CWBackPixel, &attr);
     XdbeBackBuffer back = XdbeAllocateBackBufferName(display, window, XdbeBackground);
     GC gc = XCreateGC(display, back, 0, NULL);
 
@@ -150,8 +166,7 @@ screen_t new_screen(int pty) {
                                 | StructureNotifyMask
                                 );
     XMapWindow(display, window);
-    XftDraw *d = XftDrawCreate(display, back, vis,
-                                                XDefaultColormap(display, screen));
+    XftDraw *d = XftDrawCreate(display, back, vis, XDefaultColormap(display, screen));
 
     XftColor *colors = calloc(COLOR_CT, sizeof(XftColor));
     for (int i = 0; i < COLOR_CT; ++i) {
@@ -169,10 +184,38 @@ screen_t new_screen(int pty) {
     return res;
 }
 
-void render_buffer(screen_t screen, buffer_t *buffer, int startx, int starty) {
+void resize_screen(screen_t *screen, int width, int height) {
+    int new_cols = width / 8;
+    int new_rows = height / 12;
+    if (new_cols == screen->buffer->width && new_rows == screen->buffer->height) {
+        return;
+    }
+    buffer_t *resized = new_buffer(new_cols, new_rows);
+    for (int x = 0; x < resized->width && x < screen->buffer->width; ++x) {
+        for (int y = 0; y < resized->height && y < screen->buffer->height; ++y) {
+            resized->contents[x][y] = screen->buffer->contents[x][y];
+        }
+    }
+    resized->unread = screen->buffer->unread;
+    resized->cursor = screen->buffer->cursor;
+    free_buffer(screen->buffer);
+    screen->buffer = resized;
+    screen->width = width;
+    screen->height = height;
+    XftDrawChange(screen->textarea, screen->backBuffer);
+
+    struct winsize newsz;
+    newsz.ws_row = new_rows;
+    newsz.ws_col = new_cols;
+
+    ioctl(screen->pty, TIOCSWINSZ, &newsz);
+}
+
+void render_buffer(screen_t screen) {
+    buffer_t *buffer = screen.buffer;
     for (int y = 0; y < buffer->height; ++y) {
         for (int x = 0; x < buffer->width; ++x) {
-            char_t entry = buffer->contents[startx+x][starty+y];
+            char_t entry = buffer->contents[x][y];
             XftChar8 *data = (XftChar8 *)(entry.codepoint);
             if (*data != 0) {
                 XftDrawString8(screen.textarea, screen.colors + entry.color, screen.font,
@@ -188,8 +231,16 @@ void wipe_screen(screen_t screen) {
 
 void swap_buffers(screen_t screen) {
     XdbeSwapInfo swap = { .swap_window = screen.window,
-                          .swap_action = XdbeCopied};
+                          .swap_action = XdbeUndefined};
 
     XdbeSwapBuffers(screen.display, &swap, 1);
-    XFlush(display);
+}
+
+void refresh(screen_t *screen) {
+    XdbeBeginIdiom(screen->display);
+    wipe_screen(*screen);
+    render_buffer(*screen);
+    swap_buffers(*screen);
+    XdbeEndIdiom(screen->display);
+    XFlush(screen->display);
 }

@@ -54,15 +54,11 @@ int main(int argc, char *argv[]) {
             if (ct > 0) {
                 inbuf[ct] = 0;
                 write_string(all_screens.screens[0].buffer, inbuf, ct);
-                wipe_screen(all_screens.screens[0]);
-                render_buffer(all_screens.screens[0], 
-                              all_screens.screens[0].buffer, 0, 0);
-                swap_buffers(all_screens.screens[0]);
-                fflush(stdout);
+                refresh(all_screens.screens);
             } else if (ct == 0) {
                 waitpid(child, NULL, 0);
                 exit(0);
-            } else { 
+            } else {
                 waitpid(child, NULL, 0);
                 exit(0);
             }
@@ -72,4 +68,4 @@ int main(int argc, char *argv[]) {
             handle_x11evs();
         }
     }
-} 
+}

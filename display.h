@@ -42,9 +42,12 @@ screen_t new_screen(int pty);
 
 void handle_x11evs();
 void handle_x11ev(XEvent ev);
-void handle_windowev(screen_t window, XEvent ev);
+void handle_windowev(screen_t *window, XEvent ev);
 
+void resize_screen(screen_t *screen, int width, int height);
+
+void refresh(screen_t *screen);
 void wipe_screen(screen_t screen);
-void render_buffer(screen_t screen, buffer_t *buffer, int startx, int starty);
+void render_buffer(screen_t screen);
 void swap_buffers(screen_t screen);
 #endif

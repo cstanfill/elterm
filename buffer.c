@@ -104,7 +104,7 @@ void write_char(buffer_t *buffer, char c) {
         return;
     }
     if (c == '\r') { buffer->cursor.x = 0; return; }
-    if (c == '\n') { 
+    if (c == '\n') {
         ++buffer->cursor.y;
         if (buffer->cursor.y >= buffer->height) {
             scroll_down(buffer);
