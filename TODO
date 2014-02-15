@@ -1,0 +1,13 @@
+- remove silly screen list abstraction?
+- implement more reasonable line overflow behavior
+- more escape code parsing
+- refactor escape code parser
+- better escape code failure response
+- colors
+- configuration
+- control characters, arrow keys
+- move to src/ dir
+- logging
+- text select
+- correct text placement (extents)
+- unicode character widths
