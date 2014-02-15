@@ -57,6 +57,7 @@ int main(int argc, char *argv[]) {
                 wipe_screen(all_screens.screens[0]);
                 render_buffer(all_screens.screens[0], 
                               all_screens.screens[0].buffer, 0, 0);
+                swap_buffers(all_screens.screens[0]);
                 fflush(stdout);
             } else if (ct == 0) {
                 waitpid(child, NULL, 0);

@@ -12,12 +12,15 @@ typedef struct screen_t {
     Display *display;
     Window window;
     XdbeBackBuffer backBuffer;
+    GC gc;
     int screen;
     XftDraw *textarea;
     XftColor *colors;
     XftFont *font;
     int pty;
     buffer_t *buffer;
+    int width;
+    int height;
 } screen_t;
 
 typedef struct screens_t {
@@ -43,4 +46,5 @@ void handle_windowev(screen_t window, XEvent ev);
 
 void wipe_screen(screen_t screen);
 void render_buffer(screen_t screen, buffer_t *buffer, int startx, int starty);
+void swap_buffers(screen_t screen);
 #endif

@@ -22,9 +22,9 @@ int display_init() {
     display = XOpenDisplay(NULL);
     if (display == NULL) { return -1; }
     x11fd = ConnectionNumber(display);
-    default_colors[0].red = 0;
-    default_colors[0].blue = 0;
-    default_colors[0].green = 0;
+    default_colors[0].red = 0xFFFF;
+    default_colors[0].blue = 0xFFFF;
+    default_colors[0].green = 0xFFFF;
     default_colors[0].alpha = 0xFFFF;
 
     default_colors[1].red = 0xFFFF;
@@ -138,18 +138,19 @@ screen_t new_screen(int pty) {
     int screen = DefaultScreen(display);
     Visual *vis = get_visual(display);
     XSetWindowAttributes attr;
-    attr.background_pixel = WhitePixel(display, screen);
+    attr.background_pixel = BlackPixel(display, screen);
     Window window = XCreateWindow(display, RootWindow(display, screen),
             0, 0, 800, 800, 1, CopyFromParent, CopyFromParent,
             vis, CWBackPixel, &attr);
     XdbeBackBuffer back = XdbeAllocateBackBufferName(display, window, XdbeBackground);
+    GC gc = XCreateGC(display, back, 0, NULL);
 
     XSelectInput(display, window, ExposureMask
                                 | KeyPressMask
                                 | StructureNotifyMask
                                 );
     XMapWindow(display, window);
-    XftDraw *d = XftDrawCreate(display, window, vis,
+    XftDraw *d = XftDrawCreate(display, back, vis,
                                                 XDefaultColormap(display, screen));
 
     XftColor *colors = calloc(COLOR_CT, sizeof(XftColor));
@@ -160,8 +161,9 @@ screen_t new_screen(int pty) {
 
     XftFont *f = XftFontOpenName(display, screen, "DejaVu Sans Mono:pixelsize=12:antialias=true:autohint=true");
 
-    screen_t res = { display, window, back, screen, d,
-        (XftColor*) colors, f, pty, new_buffer(config.term_width, config.term_height) };
+    screen_t res = { display, window, back, gc, screen, d,
+        (XftColor*) colors, f, pty, new_buffer(config.term_width, config.term_height),
+        800, 800};
     printf("Initialized new window\n");
     XFlush(display);
     return res;
@@ -178,9 +180,16 @@ void render_buffer(screen_t screen, buffer_t *buffer, int startx, int starty) {
             }
         }
     }
-    XFlush(display);
 }
 
 void wipe_screen(screen_t screen) {
-    XClearArea(screen.display, screen.window, 0, 0, 800, 800, false);
+    XFillRectangle(screen.display, screen.backBuffer, screen.gc, 0, 0, screen.width, screen.height);
+}
+
+void swap_buffers(screen_t screen) {
+    XdbeSwapInfo swap = { .swap_window = screen.window,
+                          .swap_action = XdbeCopied};
+
+    XdbeSwapBuffers(screen.display, &swap, 1);
+    XFlush(display);
 }
