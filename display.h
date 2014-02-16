@@ -43,6 +43,7 @@ screen_t new_screen(int pty);
 void handle_x11evs();
 void handle_x11ev(XEvent ev);
 void handle_windowev(screen_t *window, XEvent ev);
+int keysym_to_input(KeySym k, char *buffer);
 
 void resize_screen(screen_t *screen, int width, int height);
 

@@ -121,7 +121,6 @@ void write_char(buffer_t *buffer, char c) {
                 buffer->cursor.y = 0;
             }
         }
-        buffer->contents[buffer->cursor.x][buffer->cursor.y] = to_char_t(0, 0);
         return;
     }
     if (c == '\a') {
@@ -243,6 +242,7 @@ ANSI:
     for (int i = 2; i < len; ++i) {
         args = calloc(i, sizeof(int));
         int ct;
+        int arg;
         switch (buffer[i]) {
             case 'H':
             case 'f':
@@ -258,31 +258,39 @@ ANSI:
                 result->contents.action = (control_char_t) { .position = (move_cursor) { CURSOR, x, y } };
                 return i+1;
             case 'A':
-                REQUIRE((parse_args(buffer, len, args)==1));
+                ct = parse_args(buffer, len, args);
+                REQUIRE(ct < 2);
+                arg = (ct == 0)?1:args[0];
                 result->ischar = false;
                 result->contents.action = (control_char_t) {
-                    .position = (move_cursor) { CURSOR_REL,       0,-args[0] }
+                    .position = (move_cursor) { CURSOR_REL,   0,-arg }
                 };
                 return i+1;
             case 'B':
-                REQUIRE((parse_args(buffer, len, args)==1));
+                ct = parse_args(buffer, len, args);
+                REQUIRE(ct < 2);
+                arg = (ct == 0)?1:args[0];
                 result->ischar = false;
                 result->contents.action = (control_char_t) {
-                    .position = (move_cursor) { CURSOR_REL,       0, args[0] }
+                    .position = (move_cursor) { CURSOR_REL,   0, arg }
                 };
                 return i+1;
             case 'C':
-                REQUIRE((parse_args(buffer, len, args)==1));
+                ct = parse_args(buffer, len, args);
+                REQUIRE(ct < 2);
+                arg = (ct == 0)?1:args[0];
                 result->ischar = false;
                 result->contents.action = (control_char_t) {
-                    .position = (move_cursor) { CURSOR_REL, args[0],       0 }
+                    .position = (move_cursor) { CURSOR_REL, arg,   0 }
                 };
                 return i+1;
             case 'D':
-                REQUIRE((parse_args(buffer, len, args)==1));
+                ct = parse_args(buffer, len, args);
+                REQUIRE(ct < 2);
+                arg = (ct == 0)?1:args[0];
                 result->ischar = false;
                 result->contents.action = (control_char_t) {
-                    .position = (move_cursor) { CURSOR_REL,-args[0],       0 }
+                    .position = (move_cursor) { CURSOR_REL,-arg,   0 }
                 };
                 return i+1;
 

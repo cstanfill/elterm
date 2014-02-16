@@ -6,6 +6,7 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/keysym.h>
+#include <X11/keysymdef.h>
 #include <X11/Xft/Xft.h>
 #include <X11/extensions/Xdbe.h>
 
@@ -101,12 +102,29 @@ void handle_x11ev(XEvent ev) {
 
 void handle_windowev(screen_t *window, XEvent ev) {
     if (ev.type == KeyPress) {
-        char buffer[8];
+        char buffer[9];
+        memset(buffer, 0, 9);
         KeySym symbol;
         XComposeStatus status;
         int ct = XLookupString(&(ev.xkey), buffer, 8, &symbol, &status);
-        write(window->pty, buffer, ct);
-
+        if (ct == 0) { // special keys
+            int keysymct;
+            KeySym *syms = XGetKeyboardMapping(window->display, ev.xkey.keycode,
+                    1, &keysymct);
+            for (int i = 0; i < keysymct; ++i) {
+                ct = keysym_to_input(syms[i], buffer);
+                write(window->pty, buffer, ct);
+            }
+            XFree(syms);
+        } else {
+            if (ev.xkey.state & Mod1Mask) {
+                char modbuffer[1] = { 27} ; // ESC
+                write(window->pty, modbuffer, 1);
+            }
+            write(window->pty, buffer, ct);
+            printf("got (length = %d): ", ct);
+            printx(buffer);
+        }
     } else if (ev.type == ResizeRequest) {
         resize_screen(window, ev.xresizerequest.width, ev.xresizerequest.height);
     } else if (ev.type == ConfigureNotify) {
@@ -217,6 +235,11 @@ void render_buffer(screen_t screen) {
         for (int x = 0; x < buffer->width; ++x) {
             char_t entry = buffer->contents[x][y];
             XftChar8 *data = (XftChar8 *)(entry.codepoint);
+            if (x == buffer->cursor.x && y == buffer->cursor.y) {
+                XSetForeground(screen.display, screen.gc, 0x0000FF00);
+                XFillRectangle(screen.display, screen.backBuffer, screen.gc,
+                        x * 8, y * 12 + 2, 8, 12);
+            }
             if (*data != 0) {
                 XftDrawString8(screen.textarea, screen.colors + entry.color, screen.font,
                         x * 8, y * 12 + 12, data, 1);
@@ -226,6 +249,7 @@ void render_buffer(screen_t screen) {
 }
 
 void wipe_screen(screen_t screen) {
+    XSetForeground(screen.display, screen.gc, 0xFF000000);
     XFillRectangle(screen.display, screen.backBuffer, screen.gc, 0, 0, screen.width, screen.height);
 }
 
@@ -243,4 +267,39 @@ void refresh(screen_t *screen) {
     swap_buffers(*screen);
     XdbeEndIdiom(screen->display);
     XFlush(screen->display);
+}
+
+int keysym_to_input(KeySym k, char *buffer) {
+    // TODO: buffer overflow
+    int ct = 0;
+    switch (k) {
+        case XK_Up:
+            buffer[0] = 27;
+            buffer[1] = 'O';
+            buffer[2] = 'A';
+            ct = 3;
+            break;
+        case XK_Down:
+            buffer[0] = 27;
+            buffer[1] = 'O';
+            buffer[2] = 'B';
+            ct = 3;
+            break;
+        case XK_Right:
+            buffer[0] = 27;
+            buffer[1] = 'O';
+            buffer[2] = 'C';
+            ct = 3;
+            break;
+        case XK_Left:
+            buffer[0] = 27;
+            buffer[1] = 'O';
+            buffer[2] = 'D';
+            ct = 3;
+            break;
+        default:
+            ct = 0;
+            break;
+    }
+    return ct;
 }
