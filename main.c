@@ -59,6 +59,7 @@ int main(int argc, char *argv[]) {
                 waitpid(child, NULL, 0);
                 exit(0);
             } else {
+                printf("Shell pty closed; exiting\n");
                 waitpid(child, NULL, 0);
                 exit(0);
             }

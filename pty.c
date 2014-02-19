@@ -22,7 +22,10 @@ pid_t fork_shell(int *master_out) {
        int rv;
        if((rv = start_shell(slave)) != 0) {
            perror("Error starting shell");
+           close(master);
+           exit(-1);
        }
+
        // never returns
        return pid;
    } else {
