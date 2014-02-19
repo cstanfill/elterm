@@ -8,7 +8,7 @@ TARGETS = elterm
 
 LIBS = -lutil -lX11 -lXft -lXext
 
-elterm: bindir Makefile.tail $(ALL_OBJS)
+elterm: bindir mktail $(ALL_OBJS)
 	$(CC) $(LDFLAGS) $(CFLAGS) -o $@ $(LIBS) $(ALL_OBJS)
 
 bindir:
@@ -17,8 +17,8 @@ bindir:
 clean:
 	rm -f -- bin/*
 
-.PHONY: Makefile.tail
-Makefile.tail:
+.PHONY: mktail
+mktail:
 	build/gentail.sh src/*.c $(INCLUDES) > Makefile.tail
 
 include Makefile.tail
