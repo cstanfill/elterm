@@ -2,6 +2,12 @@
 #define CONTROL_H
 #include <stdbool.h>
 
+#define ANSI_RESET      0
+#define ANSI_BOLD       1
+#define ANSI_UNDERLINED 4
+#define ANSI_BLINK      5
+#define ANSI_INVERSE    7
+
 #define ANSI_FG_BLACK   30
 #define ANSI_FG_RED     31
 #define ANSI_FG_GREEN   32
@@ -31,7 +37,8 @@ typedef enum {
     PREV_INDEX,
     NEXT_LINE,
     CLEAR,
-    NOP
+    NOP,
+    SCROLL_REG,
 } control_type;
 
 typedef struct {
@@ -60,12 +67,19 @@ typedef struct {
     int y;
 } move_cursor;
 
+typedef struct {
+    control_type type;
+    int top;
+    int bot;
+} scroll_region;
+
 typedef union {
      control_type type;
      no_args dummy;
      change_color color;
      move_cursor position;
      clear_regions clear;
+     scroll_region scroll;
 } control_char_t;
 
 #endif

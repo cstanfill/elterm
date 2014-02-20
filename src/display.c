@@ -25,9 +25,9 @@ int display_init() {
     display = XOpenDisplay(NULL);
     if (display == NULL) { return -1; }
     x11fd = ConnectionNumber(display);
-    default_colors[0].red = 0xFFFF;
-    default_colors[0].blue = 0xFFFF;
-    default_colors[0].green = 0xFFFF;
+    default_colors[0].red = 0;
+    default_colors[0].blue = 0;
+    default_colors[0].green = 0;
     default_colors[0].alpha = 0xFFFF;
 
     default_colors[1].red = 0xFFFF;
@@ -49,6 +49,21 @@ int display_init() {
     default_colors[4].blue = 0xFFFF;
     default_colors[4].green = 0;
     default_colors[4].alpha = 0xFFFF;
+
+    default_colors[5].red = 0xFFFF;
+    default_colors[5].blue = 0xFFFF;
+    default_colors[5].green = 0;
+    default_colors[5].alpha = 0xFFFF;
+
+    default_colors[6].red = 0;
+    default_colors[6].blue = 0xFFFF;
+    default_colors[6].green = 0xFFFF;
+    default_colors[6].alpha = 0xFFFF;
+
+    default_colors[7].red = 0xFFFF;
+    default_colors[7].blue = 0xFFFF;
+    default_colors[7].green = 0xFFFF;
+    default_colors[7].alpha = 0xFFFF;
 
     printf("Initialized display\n");
     return 0;
@@ -122,8 +137,6 @@ void handle_windowev(screen_t *window, XEvent ev) {
                 write(window->pty, modbuffer, 1);
             }
             write(window->pty, buffer, ct);
-            printf("got (length = %d): ", ct);
-            printx(buffer);
         }
     } else if (ev.type == ResizeRequest) {
         resize_screen(window, ev.xresizerequest.width, ev.xresizerequest.height);
@@ -239,9 +252,18 @@ void render_buffer(screen_t screen) {
                 XSetForeground(screen.display, screen.gc, 0x0000FF00);
                 XFillRectangle(screen.display, screen.backBuffer, screen.gc,
                         x * 8, y * 12 + 2, 8, 12);
+            } else {
+                XRenderColor bg = default_colors[entry.bg];
+                XSetForeground(screen.display, screen.gc,
+                        (((bg.green>>2)<<8)  & 0x0000FF00) +
+                        (((bg.red>>2)<<16)   & 0x00FF0000) +
+                        (((bg.blue>>2)<<0)   & 0x000000FF) +
+                        (((bg.alpha>>2)<<24) & 0xFF000000));
+                XFillRectangle(screen.display, screen.backBuffer, screen.gc,
+                        x * 8, y * 12 + 2, 8, 12);
             }
             if (*data != 0) {
-                XftDrawString8(screen.textarea, screen.colors + entry.color, screen.font,
+                XftDrawString8(screen.textarea, screen.colors + entry.fg, screen.font,
                         x * 8, y * 12 + 12, data, 1);
             }
         }

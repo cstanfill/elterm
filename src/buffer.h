@@ -7,14 +7,16 @@
 /* todo: come up with a better name than char_t */
 typedef struct {
     char codepoint[4];
-    int color;
+    int fg;
+    int bg;
     bool folded;
 } char_t;
 
 typedef struct {
     int x;
     int y;
-    int color;
+    int fgcolor;
+    int bgcolor;
 } cursor_t;
 
 typedef struct {
@@ -36,17 +38,20 @@ typedef struct {
     int height;
     queue_t *unread;
     cursor_t cursor;
+    int scroll_top;
+    int scroll_bot;
 } buffer_t;
 
 bool is_printable(char c);
 bool is_control(char c);
 
-char_t to_char_t(char c, int color);
+char_t to_cursor_char_t(buffer_t *buffer, char c);
+char_t to_char_t(char c, int fgcolor, int bgcolor);
+
 void enqueue(queue_t *queue, char c);
 void dequeue_n(queue_t *queue, int count);
 char dequeue(queue_t *queue);
 void flush(queue_t *queue);
-
 
 int parse(char *buffer, int len, char_or_control *result);
 int parse_args(char *buffer, int len, int *result);

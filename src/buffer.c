@@ -1,18 +1,20 @@
-#include <fcntl.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
-#include <unistd.h>
 #include "buffer.h"
 
-int logfd;
 bool is_printing(char c) {
     return (c <= '~') && (c >= ' ');
 }
 
-char_t to_char_t(char c, int color) {
-    return (char_t) {{c, 0, 0, 0}, color, false};
+inline char_t to_cursor_char_t(buffer_t *buffer, char c) {
+    return to_char_t(c, buffer->cursor.fgcolor, buffer->cursor.bgcolor);
+}
+
+
+inline char_t to_char_t(char c, int fgcolor, int bgcolor) {
+    return (char_t) {{c, 0, 0, 0}, fgcolor, bgcolor, false};
 }
 
 void enqueue(queue_t *queue, char c) {
@@ -78,7 +80,9 @@ buffer_t *new_buffer(int width, int height) {
     buffer->contents = contents;
     buffer->width = width;
     buffer->height = height;
-    buffer->cursor = (cursor_t) { 0, 0, 0 };
+    buffer->cursor = (cursor_t) { 0, 0, 7, 0 };
+    buffer->scroll_top = 0;
+    buffer->scroll_bot = height - 1;
     return buffer;
 }
 
@@ -92,7 +96,8 @@ void free_buffer(buffer_t *buffer) {
 
 void write_char_t(buffer_t *buffer, char_t c) {
     buffer->contents[buffer->cursor.x][buffer->cursor.y] = c;
-    buffer->contents[buffer->cursor.x][buffer->cursor.y].color = buffer->cursor.color;
+    buffer->contents[buffer->cursor.x][buffer->cursor.y].fg = buffer->cursor.fgcolor;
+    buffer->contents[buffer->cursor.x][buffer->cursor.y].bg = buffer->cursor.bgcolor;
     if (buffer->cursor.x == buffer->width - 1) {
         buffer->contents[buffer->cursor.x][buffer->cursor.y].folded = true;
     }
@@ -127,7 +132,7 @@ void write_char(buffer_t *buffer, char c) {
         return;
     }
     if (is_printing(c) && buffer->unread->len == 0) {
-        write_char_t(buffer, to_char_t(c, buffer->cursor.color));
+        write_char_t(buffer, to_cursor_char_t(buffer, c));
     } else {
         queue_t *unread = buffer->unread;
         enqueue(unread, c);
@@ -135,17 +140,22 @@ void write_char(buffer_t *buffer, char c) {
         char_or_control result;
         int len;
         if ((len = parse(unread->contents, unread->len, &result)) > 0) {
+            printx(unread->contents);
             dequeue_n(unread, len);
             if (!result.ischar) {
                 control_char_t action = result.contents.action;
                 if (action.type == SETGMODE) {
                     change_color c = action.color;
                     if (c.attribute == 0) {
-                        buffer->cursor.color = 0;
+                        buffer->cursor.fgcolor = 7;
+                        buffer->cursor.bgcolor = 0;
                     }
 
                     if (c.foreground != -1) {
-                        buffer->cursor.color = c.foreground - ANSI_FG_BLACK;
+                        buffer->cursor.fgcolor = c.foreground - ANSI_FG_BLACK;
+                    }
+                    if (c.background != -1) {
+                        buffer->cursor.bgcolor = c.background - ANSI_BG_BLACK;
                     }
                 } else if (action.type == CURSOR) {
                     buffer->cursor.x = action.position.x;
@@ -229,14 +239,14 @@ ANSI:
         args = calloc(i, sizeof(int));
         int ct;
         int arg;
+        int x = 0;
+        int y = 0;
         switch (buffer[i]) {
             case 'H':
             case 'f':
                 REQUIRE((ct =parse_args(buffer, len, args))<=2);
                 REQUIRE(ct != 1);
                 result->ischar = false;
-                int x = 0;
-                int y = 0;
                 if (ct == 2) {
                     x = args[1] - 1;
                     y = args[0] - 1;
@@ -355,6 +365,15 @@ ANSI:
             case 'p':
                 // not implemented
                 return i+1;
+            case 'r':
+                REQUIRE((ct = parse_args(buffer, len, args))==2);
+                result->ischar = false;
+                result->contents.action = (control_char_t) {
+                    .scroll = (scroll_region) {
+                        SCROLL_REG, args[0], args[1]
+                    }
+                };
+                return i+1;
             case 27:
                 // esc.. we fucked up, probably
                 return i;
@@ -396,7 +415,7 @@ void scroll_down(buffer_t *buffer) {
         }
     }
     for (int x = 0; x < buffer->width; ++x) {
-        buffer->contents[x][buffer->height-1] = to_char_t(0, 0);
+        buffer->contents[x][buffer->height-1] = to_cursor_char_t(buffer, 0);
     }
 }
 
@@ -407,14 +426,14 @@ void scroll_up(buffer_t *buffer) {
         }
     }
     for (int x = 0; x < buffer->width; ++x) {
-        buffer->contents[x][0] = to_char_t(0, 0);
+        buffer->contents[x][0] = to_cursor_char_t(buffer, 0);
     }
 }
 
 void clear_down(buffer_t *buffer) {
     for (int y = buffer->cursor.y; y < buffer->height; ++y) {
         for (int x = 0; x < buffer->width; ++x) {
-            buffer->contents[x][y] = to_char_t(0, 0);
+            buffer->contents[x][y] = to_cursor_char_t(buffer, 0);
         }
     }
 }
@@ -422,7 +441,7 @@ void clear_down(buffer_t *buffer) {
 void clear_up(buffer_t *buffer) {
     for (int y = buffer->cursor.y-1; y >= 0; ++y) {
         for (int x = 0; x < buffer->width; ++x) {
-            buffer->contents[x][y] = to_char_t(0, 0);
+            buffer->contents[x][y] = to_cursor_char_t(buffer, 0);
         }
     }
 }
@@ -430,14 +449,14 @@ void clear_up(buffer_t *buffer) {
 void clear_left(buffer_t *buffer) {
     int y = buffer->cursor.y;
     for (int x = buffer->cursor.x; x >= 0; ++x) {
-        buffer->contents[x][y] = to_char_t(0, 0);
+        buffer->contents[x][y] = to_cursor_char_t(buffer, 0);
     }
 }
 
 void clear_right(buffer_t *buffer) {
     int y = buffer->cursor.y;
     for (int x = buffer->cursor.x; x < buffer->width; ++x) {
-        buffer->contents[x][y] = to_char_t(0, 0);
+        buffer->contents[x][y] = to_cursor_char_t(buffer, 0);
     }
 }
 
