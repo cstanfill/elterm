@@ -158,11 +158,9 @@ void write_char(buffer_t *buffer, char c) {
                         buffer->cursor.bgcolor = c.background - ANSI_BG_BLACK;
                     }
                 } else if (action.type == CURSOR) {
-                    buffer->cursor.x = action.position.x;
-                    buffer->cursor.y = action.position.y;
+                    move_to(buffer, action.position.x, action.position.y);
                 } else if (action.type == CURSOR_REL) {
-                    buffer->cursor.x += action.position.x;
-                    buffer->cursor.y += action.position.y;
+                    move_by(buffer, action.position.x, action.position.y);
                 } else if (action.type == CLEAR) {
                     if (action.clear.region_mask & CL_LINE_DOWN) {
                         clear_down(buffer);
@@ -439,7 +437,7 @@ void clear_down(buffer_t *buffer) {
 }
 
 void clear_up(buffer_t *buffer) {
-    for (int y = buffer->cursor.y-1; y >= 0; ++y) {
+    for (int y = buffer->cursor.y-1; y >= 0; --y) {
         for (int x = 0; x < buffer->width; ++x) {
             buffer->contents[x][y] = to_cursor_char_t(buffer, 0);
         }
@@ -448,7 +446,7 @@ void clear_up(buffer_t *buffer) {
 
 void clear_left(buffer_t *buffer) {
     int y = buffer->cursor.y;
-    for (int x = buffer->cursor.x; x >= 0; ++x) {
+    for (int x = buffer->cursor.x; x >= 0; --x) {
         buffer->contents[x][y] = to_cursor_char_t(buffer, 0);
     }
 }
@@ -464,8 +462,27 @@ void move_to(buffer_t *buffer, int x, int y) {
     int maxx = buffer->width;
     int maxy = buffer->height;
 
-    buffer->cursor.y = (y<0)?0:((y>=maxy)?maxy-1:y);
-    buffer->cursor.x = (x<0)?0:((x>=maxx)?maxx-1:x);
+    if (x < 0) {
+        x = maxx - 1;
+        --y;
+    }
+
+    if (x >= maxx) {
+        x = 0;
+        ++y;
+    }
+
+    while (y < 0) {
+        scroll_up(buffer);
+        ++y;
+    }
+
+    while (y >= maxy) {
+        scroll_down(buffer);
+        --y;
+    }
+    buffer->cursor.x = x;
+    buffer->cursor.y = y;
 }
 
 void move_by(buffer_t *buffer, int x, int y) {

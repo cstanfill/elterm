@@ -24,7 +24,7 @@ int main(int argc, char *argv[]) {
     }
     add_screen(&all_screens, new_screen(master_pty));
 
-    char inbuf[512];
+    char inbuf[8192];
     while (1) {
         FD_ZERO(&rfds);
         FD_SET(0, &rfds);
@@ -39,7 +39,7 @@ int main(int argc, char *argv[]) {
             }
         }
         if (FD_ISSET(0, &rfds)) {
-            int ct = read(0, inbuf, 512);
+            int ct = read(0, inbuf, 8192);
             if (ct > 0) {
                 write(master_pty, inbuf, ct);
             } else if (ct ==0) {
@@ -50,7 +50,7 @@ int main(int argc, char *argv[]) {
             }
         }
         if (FD_ISSET(master_pty, &rfds)) {
-            int ct = read(master_pty, inbuf, 512);
+            int ct = read(master_pty, inbuf, 8192);
             if (ct > 0) {
                 inbuf[ct] = 0;
                 write_string(all_screens.screens[0].buffer, inbuf, ct);
