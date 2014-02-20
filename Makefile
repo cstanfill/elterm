@@ -16,6 +16,7 @@ bindir:
 
 clean:
 	rm -f -- bin/*
+	rmdir bin
 
 .PHONY: mktail
 mktail:

@@ -8,6 +8,7 @@
 typedef struct {
     char codepoint[4];
     int color;
+    bool folded;
 } char_t;
 
 typedef struct {
@@ -53,6 +54,8 @@ int parse_args(char *buffer, int len, int *result);
 buffer_t *new_buffer(int width, int height);
 void free_buffer(buffer_t *buffer);
 
+void move_to(buffer_t *buffer, int x, int y);
+void move_by(buffer_t *buffer, int x, int y);
 void scroll_up(buffer_t *buffer);
 void scroll_down(buffer_t *buffer);
 void clear_down(buffer_t *buffer);

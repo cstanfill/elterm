@@ -6,8 +6,9 @@
 - colors
 - configuration
 - control characters, arrow keys
-- move to src/ dir
 - logging
 - text select
 - correct text placement (extents)
 - unicode character widths
+- terminfo
+x move to src/ dir

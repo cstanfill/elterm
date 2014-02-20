@@ -1,15 +1,18 @@
+#include <fcntl.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
+#include <unistd.h>
 #include "buffer.h"
 
+int logfd;
 bool is_printing(char c) {
     return (c <= '~') && (c >= ' ');
 }
 
 char_t to_char_t(char c, int color) {
-    return (char_t) {{c, 0, 0, 0}, color};
+    return (char_t) {{c, 0, 0, 0}, color, false};
 }
 
 void enqueue(queue_t *queue, char c) {
@@ -36,7 +39,7 @@ void dequeue_n(queue_t *queue, int count) {
         return; }
     char *new_queue = calloc(queue->len - count, sizeof(char));
     for (int i = 0; i < queue->len - count; ++i) {
-        new_queue[i] = queue->contents[i];
+        new_queue[i] = queue->contents[count + i];
     }
     if (queue->contents != NULL) {
         free(queue->contents);
@@ -90,40 +93,37 @@ void free_buffer(buffer_t *buffer) {
 void write_char_t(buffer_t *buffer, char_t c) {
     buffer->contents[buffer->cursor.x][buffer->cursor.y] = c;
     buffer->contents[buffer->cursor.x][buffer->cursor.y].color = buffer->cursor.color;
-    if (++(buffer->cursor.x) >= buffer->width) {
-        buffer->cursor.x = 0;
-        if (++(buffer->cursor.y) >= buffer->height) {
-            scroll_down(buffer);
-            --buffer->cursor.y;
-        }
+    if (buffer->cursor.x == buffer->width - 1) {
+        buffer->contents[buffer->cursor.x][buffer->cursor.y].folded = true;
     }
+    move_by(buffer, 1, 0);
 }
 
 void write_char(buffer_t *buffer, char c) {
     if (c & 0x80) {
         return;
     }
-    if (c == '\r') { buffer->cursor.x = 0; return; }
+    if (c == '\r') {
+        move_to(buffer, 0, buffer->cursor.y);
+        return;
+    }
     if (c == '\n') {
-        ++buffer->cursor.y;
-        if (buffer->cursor.y >= buffer->height) {
-            scroll_down(buffer);
-            --buffer->cursor.y;
-        }
+        move_by(buffer, 0, 1);
         return;
     }
     if (c == '\b') {
-        --buffer->cursor.x;
-        if (buffer->cursor.x < 0) {
-            buffer->cursor.x = buffer->width - 1;
-            --buffer->cursor.y;
-            if (buffer->cursor.y < 0) {
-                buffer->cursor.y = 0;
-            }
-        }
+        move_by(buffer, -1, 0);
         return;
     }
     if (c == '\a') {
+        return;
+    }
+    if (c == 15) {
+        // shift in
+        return;
+    }
+    if (c == 14) {
+        // shift out
         return;
     }
     if (is_printing(c) && buffer->unread->len == 0) {
@@ -167,27 +167,13 @@ void write_char(buffer_t *buffer, char c) {
                         clear_right(buffer);
                     }
                 } else if (action.type == NEXT_INDEX) {
-                    ++buffer->cursor.y;
-                    if (buffer->cursor.y >= buffer->height) {
-                        scroll_down(buffer);
-                        --buffer->cursor.y;
-                    }
+                    move_by(buffer, 0, 1);
                 } else if (action.type == PREV_INDEX) {
-                    --buffer->cursor.y;
-                    if (buffer->cursor.y < 0) {
-                        scroll_up(buffer);
-                        ++buffer->cursor.y;
-                    }
+                    move_by(buffer, 0, -1);
                 } else if (action.type == NEXT_LINE) {
-                    ++buffer->cursor.y;
-                    buffer->cursor.x = 0;
-                    if (buffer->cursor.y >= buffer->height) {
-                        scroll_up(buffer);
-                        --buffer->cursor.y;
-                    }
-
+                    move_by(buffer, 0, 1);
+                    move_to(buffer, 0, buffer->cursor.y);
                 }
-
             }
         }
     }
@@ -455,6 +441,17 @@ void clear_right(buffer_t *buffer) {
     }
 }
 
+void move_to(buffer_t *buffer, int x, int y) {
+    int maxx = buffer->width;
+    int maxy = buffer->height;
+
+    buffer->cursor.y = (y<0)?0:((y>=maxy)?maxy-1:y);
+    buffer->cursor.x = (x<0)?0:((x>=maxx)?maxx-1:x);
+}
+
+void move_by(buffer_t *buffer, int x, int y) {
+    move_to(buffer, x + buffer->cursor.x, y + buffer->cursor.y);
+}
 
 void printx(const char *string) {
     for (const char *c = string; *c != 0; ++c) {
