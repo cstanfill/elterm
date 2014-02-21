@@ -140,7 +140,9 @@ void write_char(buffer_t *buffer, char c) {
         char_or_control result;
         int len;
         if ((len = parse(unread->contents, unread->len, &result)) > 0) {
-            printx(unread->contents);
+            if (len < unread->len) {
+                printx(unread->contents);
+            }
             dequeue_n(unread, len);
             if (!result.ischar) {
                 control_char_t action = result.contents.action;
@@ -181,6 +183,9 @@ void write_char(buffer_t *buffer, char c) {
                 } else if (action.type == NEXT_LINE) {
                     move_by(buffer, 0, 1);
                     move_to(buffer, 0, buffer->cursor.y);
+                } else if (action.type == SCROLL_REG) {
+                    buffer->scroll_top = action.scroll.top;
+                    buffer->scroll_bot = action.scroll.bot;
                 }
             }
         }
@@ -368,7 +373,7 @@ ANSI:
                 result->ischar = false;
                 result->contents.action = (control_char_t) {
                     .scroll = (scroll_region) {
-                        SCROLL_REG, args[0], args[1]
+                        SCROLL_REG, args[0] - 1, args[1] - 1
                     }
                 };
                 return i+1;
@@ -407,29 +412,29 @@ int parse_args(char *buffer, int len, int *result) {
 }
 
 void scroll_down(buffer_t *buffer) {
-    for (int y = 0; y < buffer->height - 1; ++y) {
+    for (int y = buffer->scroll_top; y < buffer->scroll_bot; ++y) {
         for (int x = 0; x < buffer->width; ++x) {
             buffer->contents[x][y] = buffer->contents[x][y+1];
         }
     }
     for (int x = 0; x < buffer->width; ++x) {
-        buffer->contents[x][buffer->height-1] = to_cursor_char_t(buffer, 0);
+        buffer->contents[x][buffer->scroll_bot] = to_cursor_char_t(buffer, 0);
     }
 }
 
 void scroll_up(buffer_t *buffer) {
-    for (int y = buffer->height - 1; y > 0; --y) {
+    for (int y = buffer->scroll_bot; y > buffer->scroll_top; --y) {
         for (int x = 0; x < buffer->width; ++x) {
             buffer->contents[x][y] = buffer->contents[x][y-1];
         }
     }
     for (int x = 0; x < buffer->width; ++x) {
-        buffer->contents[x][0] = to_cursor_char_t(buffer, 0);
+        buffer->contents[x][buffer->scroll_top] = to_cursor_char_t(buffer, 0);
     }
 }
 
 void clear_down(buffer_t *buffer) {
-    for (int y = buffer->cursor.y; y < buffer->height; ++y) {
+    for (int y = buffer->cursor.y; y <= buffer->scroll_bot; ++y) {
         for (int x = 0; x < buffer->width; ++x) {
             buffer->contents[x][y] = to_cursor_char_t(buffer, 0);
         }
@@ -437,7 +442,7 @@ void clear_down(buffer_t *buffer) {
 }
 
 void clear_up(buffer_t *buffer) {
-    for (int y = buffer->cursor.y-1; y >= 0; --y) {
+    for (int y = buffer->cursor.y-1; y >= buffer->scroll_top; --y) {
         for (int x = 0; x < buffer->width; ++x) {
             buffer->contents[x][y] = to_cursor_char_t(buffer, 0);
         }
